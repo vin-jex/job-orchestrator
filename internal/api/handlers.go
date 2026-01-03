@@ -79,3 +79,40 @@ func (s *Server) handleCancelJob(
 
 	writer.WriteHeader(http.StatusOK)
 }
+
+func (s *Server) handleGetJob(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	jobIDParam := request.PathValue("jobID")
+	jobID, err := uuid.Parse(jobIDParam)
+	if err != nil {
+		http.Error(writer, "Invalid job id", http.StatusBadRequest)
+		return
+	}
+	job, err := s.store.GetJobByID(request.Context(), jobID)
+	if err != nil {
+		http.Error(writer, "Failed to fetch job", http.StatusInternalServerError)
+		return
+	}
+	if job == nil {
+		http.Error(writer, "Job not found", http.StatusNotFound)
+		return
+	}
+
+	response := JobResponse{
+		JobID:          job.ID.String(),
+		State:          job.State,
+		Payload:        job.Payload,
+		MaxAttempts:    job.MaxAttempts,
+		CurrentAttempt: job.CurrentAttempt,
+		TimeoutSeconds: job.TimeoutSeconds,
+		LastError:      job.LastError,
+		CreatedAt:      job.CreatedAt,
+		UpdatedAt:      job.UpdatedAt,
+		CancelledAt:    job.CancelledAt,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}
