@@ -60,7 +60,7 @@ docker run --name job-orchestrator-db \
 Run Migration: 
 ```bash
 migrate -path internal/store/migrations \
-  -database "postgres://postgres:postgres@localhost:5432/job_orchestrator?sslmode=disabled" up
+  -database "postgres://postgres:postgres@localhost:5432/job_orchestrator?sslmode=disable" up
 ```
 
 
