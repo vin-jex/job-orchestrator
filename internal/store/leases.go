@@ -56,3 +56,127 @@ func (s *Store) AcquireJobLease(
 
 	return
 }
+
+func (s *Store) RecoverExpiredLeases(
+	ctx context.Context,
+	now time.Time,
+) error {
+	rows, err := s.connectionPool.Query(ctx, `
+		SELECT
+			j.id,
+			j.state,
+			j.current_attempt,
+			j.max_attempts
+		FROM job_leases l
+		JOIN jobs j ON j.id = l.job_id
+		WHERE l.lease_expires_at < $1
+		FOR UPDATE SKIP LOCKED
+	`,
+		now,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			jobID          uuid.UUID
+			state          string
+			currentAttempt int
+			maxAttempts    int
+		)
+
+		if err := rows.Scan(
+			&jobID,
+			&state,
+			&currentAttempt,
+			&maxAttempts,
+		); err != nil {
+			return err
+		}
+
+		if err := s.recoverSingleJob(
+			ctx,
+			jobID,
+			state,
+			currentAttempt,
+			maxAttempts,
+		); err != nil {
+			return err
+		}
+	}
+
+	return rows.Err()
+}
+
+func (s *Store) recoverSingleJob(
+	ctx context.Context,
+	jobID uuid.UUID,
+	state string,
+	currentAttempt int,
+	maxAttempts int,
+) error {
+	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
+		switch state {
+		case "SCHEDULED":
+			if err := transitionJobState(
+				ctx,
+				transaction,
+				jobID,
+				"SCHEDULED",
+				"PENDING",
+			); err != nil {
+				return err
+			}
+		case "RUNNING":
+			newAttempt := currentAttempt + 1
+
+			if newAttempt < maxAttempts {
+				_, err := transaction.Exec(
+					ctx,
+					`
+					UPDATE jobs
+					SET state = 'PENDING',
+						current_attempt = $2,
+						updated_at = now()
+					WHERE id = $1
+					`,
+					jobID,
+					newAttempt,
+				)
+				if err != nil {
+					return err
+				}
+			} else {
+				_, err := transaction.Exec(ctx,
+					`
+					UPDATE jobs
+					SET state = 'FAILED',
+						current_attempt = $2,
+						updated_at = now()
+					WHERE id = $1
+				`,
+					jobID,
+					newAttempt,
+				)
+				if err != nil {
+					return err
+				}
+			}
+		default:
+			// Terminal or unexpected state => no-op
+			return nil
+		}
+
+		// Always delete lease
+		_, err := transaction.Exec(ctx,
+			`
+		DELETE FROM job_leases
+		WHERE job_id = $1
+		`,
+			jobID,
+		)
+		return err
+	})
+}
