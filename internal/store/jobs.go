@@ -158,3 +158,65 @@ func transitionJobState(
 
 	return nil
 }
+
+func (s *Store) AcquireScheduledJobForWorker(
+	ctx context.Context,
+	workerID uuid.UUID,
+) (uuid.UUID, []byte, error) {
+	var (
+		jobID   uuid.UUID
+		payload []byte
+	)
+
+	err := s.WithTransaction(ctx, func(transaction pgx.Tx) error {
+		row := transaction.QueryRow(ctx, `
+			SELECT j.id, j.payload
+			FROM jobs j
+			JOIN job_leases l ON l.job_id = j.id
+			WHERE j.state = 'SCHEDULED'
+			ORDER BY j.created_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		`)
+
+		if err := row.Scan(&jobID, &payload); err != nil {
+			return err
+		}
+
+		if err := transitionJobState(
+			ctx,
+			transaction,
+			jobID,
+			"SCHEDULED",
+			"RUNNING",
+		); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+
+	return jobID, payload, nil
+}
+
+func (s *Store) MarkJobCompleted(
+	ctx context.Context,
+	jobID uuid.UUID,
+) error {
+	_, err := s.connectionPool.Exec(
+		ctx,
+		`
+			UPDATE jobs
+			SET state = 'COMPLETED',
+				updated_at = now()
+			WHERE id = $1
+				AND state = 'RUNNING'
+		`,
+		jobID,
+	)
+	return err
+}

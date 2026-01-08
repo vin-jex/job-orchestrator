@@ -27,6 +27,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		return err
 	}
 
+	go w.runExecutor(ctx)
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -39,6 +41,36 @@ func (w *Worker) Run(ctx context.Context) error {
 			if err := w.store.HeartbeatWorker(ctx, w.id); err != nil {
 				return err
 			}
+		}
+	}
+}
+
+func (w *Worker) runExecutor(ctx context.Context) {
+	semaphore := make(chan struct{}, w.capacity)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case semaphore <- struct{}{}:
+			go func() {
+				defer func() { <-semaphore }()
+
+				jobID, payload, err := w.store.AcquireScheduledJobForWorker(ctx, w.id)
+				if err != nil {
+					time.Sleep(300 * time.Millisecond)
+					return
+				}
+
+				jobCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
+
+				_ = payload
+				time.Sleep(1 * time.Second)
+
+				_ = w.store.MarkJobCompleted(jobCtx, jobID)
+
+			}()
 		}
 	}
 }
