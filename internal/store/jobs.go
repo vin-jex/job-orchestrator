@@ -63,7 +63,7 @@ func (s *Store) CancelJob(
 				cancelled_at = now(),
 				updated_at = now()
 			WHERE id = $1
-				AND state NOT IN ('COMPLETED', 'CANCELLED')
+				AND state NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
 			`,
 			jobID,
 		)
@@ -219,4 +219,48 @@ func (s *Store) MarkJobCompleted(
 		jobID,
 	)
 	return err
+}
+
+func (s *Store) MarkJobFailed(
+	ctx context.Context,
+	jobID uuid.UUID,
+	errMessage string,
+) error {
+	_, err := s.connectionPool.Exec(
+		ctx,
+		`
+			UPDATE jobs
+			SET state = 'FAILED',
+				last_error = $2,
+				updated_at = now()
+			WHERE id = $1
+				AND state = 'RUNNING'
+		`,
+		jobID,
+		errMessage,
+	)
+	return err
+}
+
+func (s *Store) IsJobCancelled(
+	ctx context.Context,
+	jobID uuid.UUID,
+) (bool, error) {
+	var state string
+
+	err := s.connectionPool.QueryRow(
+		ctx,
+		`
+			SELECT state
+			FROM jobs
+			WHERE id = $1
+			`,
+		jobID,
+	).Scan(&state)
+
+	if err != nil {
+		return false, err
+	}
+
+	return state == "CANCELLED", nil
 }
