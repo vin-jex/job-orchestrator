@@ -264,3 +264,19 @@ func (s *Store) IsJobCancelled(
 
 	return state == "CANCELLED", nil
 }
+
+func (s *Store) CountRunningJobs(ctx context.Context) (int, error) {
+	row := s.connectionPool.QueryRow(
+		ctx,
+		`
+			SELECT COUNT(*)
+			FROM jobs
+			WHERE state = 'RUNNING'
+		`)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
