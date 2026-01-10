@@ -21,14 +21,20 @@ func (s *Scheduler) Run(ctx context.Context) {
 		case <-scheduleTicker.C:
 			s.tryScheduleOnce(ctx)
 		case <-recoveryTicker.C:
-			_ = s.store.RecoverExpiredLeases(ctx, time.Now())
-			s.logger.Info("expired lease recovered", "job_id", s.id.String())
+			recovered, err := s.store.RecoverExpiredLeases(ctx, time.Now())
+			if err != nil {
+				s.logger.Error("lease recovery failed", "error", err)
+			}
+
+			for _, jobID := range recovered {
+				s.logger.Info("expired lease recovered", "job_id", jobID.String())
+			}
 		}
 	}
 }
 
 func (s *Scheduler) tryScheduleOnce(ctx context.Context) {
-	_, _, err := s.store.AcquireJobLease(
+	jobID, _, err := s.store.AcquireJobLease(
 		ctx,
 		s.id,
 		30*time.Second,
@@ -38,7 +44,7 @@ func (s *Scheduler) tryScheduleOnce(ctx context.Context) {
 		return
 	}
 
-	s.logger.Info("lease acquired", "job_id", s.id.String())
+	s.logger.Info("lease acquired", "job_id", jobID.String())
 
 	// Lease acquired successfully.
 	// At this stage we do nothing else.

@@ -60,7 +60,7 @@ func (s *Store) AcquireJobLease(
 func (s *Store) RecoverExpiredLeases(
 	ctx context.Context,
 	now time.Time,
-) error {
+) ([]uuid.UUID, error) {
 	rows, err := s.connectionPool.Query(ctx, `
 		SELECT
 			j.id,
@@ -70,14 +70,17 @@ func (s *Store) RecoverExpiredLeases(
 		FROM job_leases l
 		JOIN jobs j ON j.id = l.job_id
 		WHERE l.lease_expires_at < $1
+			AND j.state NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
 		FOR UPDATE SKIP LOCKED
 	`,
 		now,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
+
+	var recovered []uuid.UUID
 
 	for rows.Next() {
 		var (
@@ -93,7 +96,7 @@ func (s *Store) RecoverExpiredLeases(
 			&currentAttempt,
 			&maxAttempts,
 		); err != nil {
-			return err
+			return nil, err
 		}
 
 		if err := s.recoverSingleJob(
@@ -103,11 +106,13 @@ func (s *Store) RecoverExpiredLeases(
 			currentAttempt,
 			maxAttempts,
 		); err != nil {
-			return err
+			return nil, err
 		}
+
+		recovered = append(recovered, jobID)
 	}
 
-	return rows.Err()
+	return recovered, rows.Err()
 }
 
 func (s *Store) recoverSingleJob(
@@ -164,9 +169,10 @@ func (s *Store) recoverSingleJob(
 					return err
 				}
 			}
+		case "COMPLETED", "FAILED", "CANCELLED":
+			// no state transition
 		default:
 			// Terminal or unexpected state => no-op
-			return nil
 		}
 
 		// Always delete lease
