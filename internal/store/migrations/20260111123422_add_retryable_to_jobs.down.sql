@@ -1,0 +1,5 @@
+ALTER TABLE jobs
+DROP CONSTRAINT IF EXISTS retryable_only_on_failed;
+
+ALTER TABLE jobs
+DROP COLUMN IF EXISTS retryable;
