@@ -66,7 +66,8 @@ func (s *Store) RecoverExpiredLeases(
 			j.id,
 			j.state,
 			j.current_attempt,
-			j.max_attempts
+			j.max_attempts,
+			j.retryable
 		FROM job_leases l
 		JOIN jobs j ON j.id = l.job_id
 		WHERE l.lease_expires_at < $1
@@ -88,6 +89,7 @@ func (s *Store) RecoverExpiredLeases(
 			state          string
 			currentAttempt int
 			maxAttempts    int
+			retryable      bool
 		)
 
 		if err := rows.Scan(
@@ -95,6 +97,7 @@ func (s *Store) RecoverExpiredLeases(
 			&state,
 			&currentAttempt,
 			&maxAttempts,
+			&retryable,
 		); err != nil {
 			return nil, err
 		}
@@ -105,6 +108,7 @@ func (s *Store) RecoverExpiredLeases(
 			state,
 			currentAttempt,
 			maxAttempts,
+			retryable,
 		); err != nil {
 			return nil, err
 		}
@@ -121,6 +125,7 @@ func (s *Store) recoverSingleJob(
 	state string,
 	currentAttempt int,
 	maxAttempts int,
+	retryable bool,
 ) error {
 	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
 		switch state {
@@ -135,40 +140,15 @@ func (s *Store) recoverSingleJob(
 				return err
 			}
 		case "RUNNING":
-			newAttempt := currentAttempt + 1
+			return s.RetryJobIfAllowed(
+				ctx,
+				transaction,
+				jobID,
+				currentAttempt,
+				maxAttempts,
+				retryable,
+			)
 
-			if newAttempt < maxAttempts {
-				_, err := transaction.Exec(
-					ctx,
-					`
-					UPDATE jobs
-					SET state = 'PENDING',
-						current_attempt = $2,
-						updated_at = now()
-					WHERE id = $1
-					`,
-					jobID,
-					newAttempt,
-				)
-				if err != nil {
-					return err
-				}
-			} else {
-				_, err := transaction.Exec(ctx,
-					`
-					UPDATE jobs
-					SET state = 'FAILED',
-						current_attempt = $2,
-						updated_at = now()
-					WHERE id = $1
-				`,
-					jobID,
-					newAttempt,
-				)
-				if err != nil {
-					return err
-				}
-			}
 		case "COMPLETED", "FAILED", "CANCELLED":
 			// no state transition
 		default:
