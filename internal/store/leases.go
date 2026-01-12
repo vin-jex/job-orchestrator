@@ -12,49 +12,57 @@ func (s *Store) AcquireJobLease(
 	ctx context.Context,
 	schedulerID uuid.UUID,
 	leaseDuration time.Duration,
-) (jobID uuid.UUID, leaseExpiresAt time.Time, err error) {
+) (uuid.UUID, time.Time, error) {
+	var jobID uuid.UUID
+	leaseExpiresAt := time.Now().Add(leaseDuration)
 
-	err = s.WithTransaction(ctx, func(transaction pgx.Tx) error {
-		row := transaction.QueryRow(ctx, `
-			WITH candidate_job AS (
-				SELECT id
-				FROM jobs
-				WHERE state = 'PENDING'
-				ORDER BY created_at
-				FOR UPDATE SKIP LOCKED
-				LIMIT 1
-			)
-			UPDATE jobs
-			SET state = 'SCHEDULED',
-				updated_at = now()
-			FROM candidate_job
-			WHERE jobs.id = candidate_job.id
-			RETURNING jobs.id
-		`)
-
-		if err := row.Scan(&jobID); err != nil {
+	err := s.WithTransaction(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(
+			ctx,
+			`
+			SELECT id
+			FROM jobs
+			WHERE state = 'PENDING'
+			ORDER BY created_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+			`,
+		).Scan(&jobID); err != nil {
 			return err
 		}
 
-		leaseExpiresAt = time.Now().Add(leaseDuration)
+		if err := transitionJobState(
+			ctx,
+			tx,
+			jobID,
+			"PENDING",
+			"SCHEDULED",
+		); err != nil {
+			return err
+		}
 
-		_, err := transaction.Exec(ctx, `
+		_, err := tx.Exec(
+			ctx,
+			`
 			INSERT INTO job_leases (
 				job_id,
 				scheduler_id,
 				lease_expires_at
 			)
 			VALUES ($1, $2, $3)
-		`,
+			`,
 			jobID,
 			schedulerID,
 			leaseExpiresAt,
 		)
-
 		return err
 	})
 
-	return
+	if err != nil {
+		return uuid.Nil, time.Time{}, err
+	}
+
+	return jobID, leaseExpiresAt, nil
 }
 
 func (s *Store) RecoverExpiredLeases(
