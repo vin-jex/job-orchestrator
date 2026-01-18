@@ -24,15 +24,16 @@ jobs:
       - name: Install migrate
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz \
-          | tar xvz
+            | tar xvz
           sudo mv migrate /usr/local/bin/migrate
 
       - name: Run migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          migrate -path internal/store/migrations \
-            -database "$DATABASE_URL" up
+          migrate \
+            -verbose \
+            -path internal/store/migrations \
+            -database "${{ secrets.DATABASE_URL }}" \
+            up
 
   build-control-plane:
     name: Build control-plane image
