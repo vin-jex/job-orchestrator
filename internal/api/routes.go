@@ -14,6 +14,6 @@ func (s *Server) registerRoutes() {
 	// Internal - Worker
 	s.mux.HandleFunc("POST /internal/jobs/{jobID}/start", s.handleStartJob)
 	s.mux.HandleFunc("POST /internal/jobs/{jobID}/complete", s.handleCompleteJob)
-	// s.mux.HandleFunc("POST /internal/jobs/{jobID}/fail", s.handleFailJob)
+	s.mux.HandleFunc("POST /internal/jobs/{jobID}/fail", s.handleFailJob)
 	// s.mux.HandleFunc("POST /internal/workers/{workerID}/heartbeat", s.handleWorkerHeartbeat)
 }

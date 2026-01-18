@@ -297,3 +297,51 @@ func (s *Server) handleCompleteJob(
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(response)
 }
+
+func (s *Server) handleFailJob(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	jobIDParam := request.PathValue("jobID")
+
+	jobID, err := uuid.Parse(jobIDParam)
+	if err != nil {
+		http.Error(writer, "invalid job id", http.StatusBadRequest)
+		return
+	}
+
+	var failRequest FailJobRequest
+	if err := json.NewDecoder(request.Body).Decode(&failRequest); err != nil {
+		http.Error(writer, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if failRequest.Error == "" {
+		http.Error(writer, "error message required", http.StatusBadRequest)
+		return
+	}
+
+	err = s.store.FailJob(
+		request.Context(),
+		jobID,
+		failRequest.Error,
+		failRequest.Retryable,
+	)
+	if err != nil {
+		if err == store.ErrInvalidStateTransition {
+			http.Error(writer, "job cannot be failed", http.StatusConflict)
+			return
+		}
+
+		http.Error(writer, "failed to mark job failed", http.StatusInternalServerError)
+		return
+	}
+
+	response := FailJobResponse{
+		JobID: jobID.String(),
+		State: store.JobFailed,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}

@@ -463,3 +463,49 @@ func (s *Store) CompleteJob(
 		return err
 	})
 }
+
+func (s *Store) FailJob(
+	ctx context.Context,
+	jobID uuid.UUID,
+	errMessage string,
+	retryable bool,
+) error {
+	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
+		if err := transitionJobState(
+			ctx,
+			transaction,
+			jobID,
+			JobFailed,
+			JobRunning,
+		); err != nil {
+			return err
+		}
+
+		_, err := transaction.Exec(
+			ctx,
+			`
+			UPDATE jobs
+			SET last_error = $2,
+				retryable = $3
+			WHERE id = $1
+			`,
+			jobID,
+			errMessage,
+			retryable,
+		)
+		if err != nil {
+			return err
+		}
+
+		_, err = transaction.Exec(
+			ctx,
+			`
+			DELETE FROM job_leases
+			WHERE job_id = $1
+			`,
+			jobID,
+		)
+
+		return err
+	})
+}

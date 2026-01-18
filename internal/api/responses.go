@@ -50,3 +50,13 @@ type CompleteJobResponse struct {
 	JobID string `json:"job_id"`
 	State string `json:"state"`
 }
+
+type FailJobRequest struct {
+	Error     string `json:"error"`
+	Retryable bool   `json:"retryable"`
+}
+
+type FailJobResponse struct {
+	JobID string `json:"job_id"`
+	State string `json:"state"`
+}
