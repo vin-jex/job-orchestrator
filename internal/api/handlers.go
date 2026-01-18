@@ -207,3 +207,29 @@ func (s *Server) handleAcquireLease(
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(response)
 }
+
+func (s *Server) handleRecoverLeases(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	recovered, err := s.store.RecoverExpiredLeases(
+		request.Context(),
+		time.Now(),
+	)
+	if err != nil {
+		http.Error(writer, "lease recovery failed", http.StatusInternalServerError)
+		return
+	}
+
+	jobIDs := make([]string, 0, len(recovered))
+	for _, id := range recovered {
+		jobIDs = append(jobIDs, id.String())
+	}
+
+	response := RecoverLeasesResponse{
+		RecoveredJobIDs: jobIDs,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}

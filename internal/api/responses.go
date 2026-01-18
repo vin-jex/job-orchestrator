@@ -36,3 +36,7 @@ type AcquireLeaseResponse struct {
 	JobID          string    `json:"job_id"`
 	LeaseExpiresAt time.Time `json:"lease_expires_at"`
 }
+
+type RecoverLeasesResponse struct {
+	RecoveredJobIDs []string `json:"recovered_job_ids"`
+}

@@ -9,7 +9,7 @@ func (s *Server) registerRoutes() {
 
 	// Internal - Scheduler
 	s.mux.HandleFunc("POST /internal/jobs/lease", s.handleAcquireLease)
-	// s.mux.HandleFunc("POST /internal/jobs/recover", s.handleRecoverLeases)
+	s.mux.HandleFunc("POST /internal/jobs/recover", s.handleRecoverLeases)
 
 	// // Internal - Worker
 	// s.mux.HandleFunc("POST /internal/jobs/{jobID}/start", s.handleStartJob)
