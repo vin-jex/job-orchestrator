@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/Vin-Jex/job-orchestrator/internal/store"
 	"github.com/google/uuid"
@@ -113,6 +114,56 @@ func (s *Server) handleGetJob(
 		CreatedAt:      job.CreatedAt,
 		UpdatedAt:      job.UpdatedAt,
 		CancelledAt:    job.CancelledAt,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}
+
+func (s *Server) handleListJobs(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	query := request.URL.Query()
+
+	var (
+		state *string
+		limit = 100
+	)
+
+	if rawState := query.Get("state"); rawState != "" {
+		state = &rawState
+	}
+
+	if rawLimit := query.Get("limit"); rawLimit != "" {
+		if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	jobs, err := s.store.ListJobs(request.Context(), state, limit)
+	if err != nil {
+		http.Error(writer, "Failed to list jobs", http.StatusInternalServerError)
+		return
+	}
+
+	response := ListJobsResponse{
+		Jobs: make([]JobResponse, 0, len(jobs)),
+	}
+
+	for _, job := range jobs {
+		response.Jobs = append(response.Jobs, JobResponse{
+			JobID:          job.ID.String(),
+			State:          job.State,
+			Payload:        job.Payload,
+			MaxAttempts:    job.MaxAttempts,
+			CurrentAttempt: job.CurrentAttempt,
+			TimeoutSeconds: job.TimeoutSeconds,
+			LastError:      job.LastError,
+			CreatedAt:      job.CreatedAt,
+			UpdatedAt:      job.UpdatedAt,
+			CancelledAt:    job.CancelledAt,
+		})
 	}
 
 	writer.Header().Set("Content-Type", "application/json")

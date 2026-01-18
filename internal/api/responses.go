@@ -22,3 +22,7 @@ type JobResponse struct {
 	UpdatedAt      time.Time       `json:"updated_at"`
 	CancelledAt    *time.Time      `json:"cancelled_at,omitempty"`
 }
+
+type ListJobsResponse struct {
+	Jobs []JobResponse `json:"jobs"`
+}
