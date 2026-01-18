@@ -58,10 +58,10 @@ func (s *Store) CancelJob(
 	ctx context.Context,
 	jobID uuid.UUID,
 ) error {
-	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
+	return s.WithTransaction(ctx, func(tx pgx.Tx) error {
 		var state string
 
-		if err := transaction.QueryRow(
+		if err := tx.QueryRow(
 			ctx,
 			`SELECT state FROM jobs WHERE id = $1 FOR UPDATE`,
 			jobID,
@@ -69,16 +69,15 @@ func (s *Store) CancelJob(
 			return err
 		}
 
-		if err := transitionJobState(ctx, transaction, jobID, state, JobCancelled); err != nil {
+		if err := transitionJobState(ctx, tx, jobID, JobCancelled, state); err != nil {
 			return err
 		}
 
-		_, err := transaction.Exec(
+		_, err := tx.Exec(
 			ctx,
 			`UPDATE jobs SET cancelled_at = now() WHERE id = $1`,
 			jobID,
 		)
-
 		return err
 	})
 }
