@@ -233,3 +233,35 @@ func (s *Server) handleRecoverLeases(
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(response)
 }
+
+func (s *Server) handleStartJob(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	jobIDParam := request.PathValue("jobID")
+
+	jobID, err := uuid.Parse(jobIDParam)
+	if err != nil {
+		http.Error(writer, "invalid job id", http.StatusBadRequest)
+		return
+	}
+
+	err = s.store.MarkJobRunning(request.Context(), jobID)
+	if err != nil {
+		if err == store.ErrInvalidStateTransition {
+			http.Error(writer, "job cannot be started", http.StatusConflict)
+			return
+		}
+
+		http.Error(writer, "failed to start job", http.StatusInternalServerError)
+		return
+	}
+
+	response := StartJobResponse{
+		JobID: jobID.String(),
+		State: store.JobRunning,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}

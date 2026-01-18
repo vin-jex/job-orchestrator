@@ -40,3 +40,8 @@ type AcquireLeaseResponse struct {
 type RecoverLeasesResponse struct {
 	RecoveredJobIDs []string `json:"recovered_job_ids"`
 }
+
+type StartJobResponse struct {
+	JobID string `json:"job_id"`
+	State string `json:"state"`
+}

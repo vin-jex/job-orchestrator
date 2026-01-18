@@ -208,6 +208,35 @@ func (s *Store) AcquireScheduledJobForWorker(
 	return jobID, payload, nil
 }
 
+func (s *Store) MarkJobRunning(
+	ctx context.Context,
+	jobID uuid.UUID,
+) error {
+	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
+		var expiresAt time.Time
+
+		err := transaction.QueryRow(
+			ctx,
+			`
+			SELECT lease_expires_at
+			FROM job_leases
+			WHERE job_id = $1
+			FOR UPDATE
+			`,
+			jobID,
+		).Scan(&expiresAt)
+		if err != nil {
+			return err
+		}
+
+		if time.Now().After(expiresAt) {
+			return ErrInvalidStateTransition
+		}
+
+		return transitionJobState(ctx, transaction, jobID, JobScheduled, JobRunning)
+	})
+}
+
 func (s *Store) MarkJobCompleted(ctx context.Context, jobID uuid.UUID) error {
 	return s.WithTransaction(ctx, func(tx pgx.Tx) error {
 		return transitionJobState(ctx, tx, jobID, JobRunning, JobCompleted)
