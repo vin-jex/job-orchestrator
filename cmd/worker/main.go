@@ -1,3 +1,15 @@
+// Worker is a long-running executor responsible for running leased jobs.
+//
+// Responsibilities:
+//   - Poll for scheduled jobs assigned to this worker
+//   - Execute jobs concurrently using a bounded worker pool
+//   - Respect cancellation and timeouts via context
+//   - Report completion or failure back to the control plane
+//
+// Workers do not make scheduling decisions.
+// They only act on authoritative state from the store.
+//
+// This binary is intended to be run as a standalone process.
 package main
 
 import (

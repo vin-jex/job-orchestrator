@@ -1,3 +1,17 @@
+// Scheduler is a long-running control-plane component responsible for
+// leasing eligible jobs and coordinating their execution.
+//
+// Responsibilities:
+//   - Acquire leases for PENDING jobs
+//   - Detect and recover expired leases
+//   - Ensure at-most-once job execution
+//   - Remain stateless and crash-safe
+//
+// The scheduler does not execute jobs.
+// It only coordinates state transitions via the store layer.
+//
+// This binary is intended to be run as a standalone process.
+// Multiple schedulers may run concurrently.
 package main
 
 import (
