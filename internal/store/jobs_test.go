@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -34,7 +35,7 @@ func TestCancelPendingJob(t *testing.T) {
 
 	_ = store.CancelJob(ctx, jobID)
 	err = store.CancelJob(ctx, jobID)
-	if err != ErrInvalidStateTransition {
+	if !errors.Is(err, ErrInvalidStateTransition) {
 		t.Fatalf("expected ErrInvalidStateTransition, got  %v", err)
 	}
 
@@ -73,7 +74,7 @@ func TestCancelCompletedJobFails(t *testing.T) {
 	}
 
 	err = store.CancelJob(ctx, jobID)
-	if err != ErrInvalidStateTransition {
+	if !errors.Is(err, ErrInvalidStateTransition) {
 		t.Fatalf("expected ErrInvalidStateTransition, got %v", err)
 	}
 }
@@ -106,7 +107,7 @@ func TestFailedJobCannotRun(t *testing.T) {
 		return transitionJobState(ctx, transaction, jobID, "FAILED", "RUNNING")
 	})
 
-	if err != ErrInvalidStateTransition {
+	if !errors.Is(err, ErrInvalidStateTransition) {
 		t.Fatalf("expected ErrInvalidStateTransition, got %v", err)
 	}
 }
