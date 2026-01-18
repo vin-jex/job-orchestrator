@@ -8,7 +8,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /v1/jobs/{jobID}/cancel", s.handleCancelJob)
 
 	// Internal - Scheduler
-	// s.mux.HandleFunc("POST /internal/jobs/lease", s.handleAcquireLease)
+	s.mux.HandleFunc("POST /internal/jobs/lease", s.handleAcquireLease)
 	// s.mux.HandleFunc("POST /internal/jobs/recover", s.handleRecoverLeases)
 
 	// // Internal - Worker

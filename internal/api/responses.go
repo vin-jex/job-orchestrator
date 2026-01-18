@@ -26,3 +26,13 @@ type JobResponse struct {
 type ListJobsResponse struct {
 	Jobs []JobResponse `json:"jobs"`
 }
+
+type AcquireLeaseRequest struct {
+	SchedulerID          string `json:"scheduler_id"`
+	LeaseDurationSeconds int    `json:"lease_duration_seconds"`
+}
+
+type AcquireLeaseResponse struct {
+	JobID          string    `json:"job_id"`
+	LeaseExpiresAt time.Time `json:"lease_expires_at"`
+}

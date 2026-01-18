@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Vin-Jex/job-orchestrator/internal/store"
 	"github.com/google/uuid"
@@ -164,6 +165,43 @@ func (s *Server) handleListJobs(
 			UpdatedAt:      job.UpdatedAt,
 			CancelledAt:    job.CancelledAt,
 		})
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(response)
+}
+
+func (s *Server) handleAcquireLease(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	var req AcquireLeaseRequest
+
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		http.Error(writer, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	schedulerID, err := uuid.Parse(req.SchedulerID)
+	if err != nil {
+		http.Error(writer, "invalid scheduler_id", http.StatusBadRequest)
+		return
+	}
+
+	if req.LeaseDurationSeconds <= 0 {
+		http.Error(writer, "invalid lease duration", http.StatusBadRequest)
+		return
+	}
+
+	jobID, expiresAt, err := s.store.AcquireJobLease(request.Context(), schedulerID, time.Duration(req.LeaseDurationSeconds)*time.Second)
+	if err != nil {
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	response := AcquireLeaseResponse{
+		JobID:          jobID.String(),
+		LeaseExpiresAt: expiresAt,
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
