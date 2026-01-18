@@ -2,4 +2,4 @@ package store
 
 import "errors"
 
-var ErrInvalidStateTransition = errors.New("Invalid job state transition")
+var ErrInvalidStateTransition = errors.New("invalid job state transition")

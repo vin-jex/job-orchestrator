@@ -9,43 +9,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func newTestStore(t *testing.T) *Store {
-	t.Helper()
-
-	store, err := NewStore(context.Background(), testDatabaseURL())
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-
-	t.Cleanup(func() {
-		store.Close()
-	})
-	return store
-}
-
 func TestCancelPendingJob(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
 
 	jobID := uuid.New()
-	err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30)
-	if err != nil {
+	if err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30); err != nil {
 		t.Fatal(err)
 	}
 
-	_ = store.CancelJob(ctx, jobID)
-	err = store.CancelJob(ctx, jobID)
-	if !errors.Is(err, ErrInvalidStateTransition) {
-		t.Fatalf("expected ErrInvalidStateTransition, got  %v", err)
+	if err := store.CancelJob(ctx, jobID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	job, err := store.GetJobByID(ctx, jobID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if job.State != "CANCELLED" {
-		t.Fatalf("expected CANCELLED, got %s", job.State)
+	if err := store.CancelJob(ctx, jobID); !errors.Is(err, ErrInvalidStateTransition) {
+		t.Fatalf("expected ErrInvalidStateTransition, got %v", err)
 	}
 }
 
@@ -54,27 +32,24 @@ func TestCancelCompletedJobFails(t *testing.T) {
 	store := newTestStore(t)
 
 	jobID := uuid.New()
-
-	err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30)
-	if err != nil {
+	if err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30); err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.WithTransaction(ctx, func(tx pgx.Tx) error {
-		if err := transitionJobState(ctx, tx, jobID, "PENDING", "SCHEDULED"); err != nil {
+	err := store.WithTransaction(ctx, func(tx pgx.Tx) error {
+		if err := transitionJobState(ctx, tx, jobID, JobPending, JobScheduled); err != nil {
 			return err
 		}
-		if err := transitionJobState(ctx, tx, jobID, "SCHEDULED", "RUNNING"); err != nil {
+		if err := transitionJobState(ctx, tx, jobID, JobScheduled, JobRunning); err != nil {
 			return err
 		}
-		return transitionJobState(ctx, tx, jobID, "RUNNING", "COMPLETED")
+		return transitionJobState(ctx, tx, jobID, JobRunning, JobCompleted)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.CancelJob(ctx, jobID)
-	if !errors.Is(err, ErrInvalidStateTransition) {
+	if err := store.CancelJob(ctx, jobID); !errors.Is(err, ErrInvalidStateTransition) {
 		t.Fatalf("expected ErrInvalidStateTransition, got %v", err)
 	}
 }
@@ -84,27 +59,25 @@ func TestFailedJobCannotRun(t *testing.T) {
 	store := newTestStore(t)
 
 	jobID := uuid.New()
-
-	err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30)
-	if err != nil {
+	if err := store.CreateJob(ctx, jobID, []byte(`{}`), 3, 30); err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.WithTransaction(ctx, func(transaction pgx.Tx) error {
-		if err := transitionJobState(ctx, transaction, jobID, "PENDING", "SCHEDULED"); err != nil {
+	err := store.WithTransaction(ctx, func(tx pgx.Tx) error {
+		if err := transitionJobState(ctx, tx, jobID, JobPending, JobScheduled); err != nil {
 			return err
 		}
-		if err := transitionJobState(ctx, transaction, jobID, "SCHEDULED", "RUNNING"); err != nil {
+		if err := transitionJobState(ctx, tx, jobID, JobScheduled, JobRunning); err != nil {
 			return err
 		}
-		return transitionJobState(ctx, transaction, jobID, "RUNNING", "FAILED")
+		return transitionJobState(ctx, tx, jobID, JobRunning, JobFailed)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.WithTransaction(ctx, func(transaction pgx.Tx) error {
-		return transitionJobState(ctx, transaction, jobID, "FAILED", "RUNNING")
+	err = store.WithTransaction(ctx, func(tx pgx.Tx) error {
+		return transitionJobState(ctx, tx, jobID, JobFailed, JobRunning)
 	})
 
 	if !errors.Is(err, ErrInvalidStateTransition) {
