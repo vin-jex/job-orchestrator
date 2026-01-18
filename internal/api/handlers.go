@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// @Summary Create a new job
+// @Description Create a job in the PENDING state
+// @Tags Jobs
+// @Accept json
+// @Produce json
+// @Param request body CreateJobRequest true "Job creation payload"
+// @Success 201 {object} CreateJobResponse
+// @Failure 400 {string} string
+// @Failure 500 {string} string
+// @Router /v1/jobs [post]
 func (s *Server) handleCreateJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -57,6 +67,15 @@ func (s *Server) handleCreateJob(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Cancel a job
+// @Description Cancel a job in any non-terminal state. Cancellation is idempotent.
+// @Tags Jobs
+// @Param jobID path string true "Job ID"
+// @Success 200
+// @Failure 400 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /v1/jobs/{jobID}/cancel [post]
 func (s *Server) handleCancelJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -84,6 +103,16 @@ func (s *Server) handleCancelJob(
 	writer.WriteHeader(http.StatusOK)
 }
 
+// @Summary Get job details
+// @Description Fetch the authoritative state and metadata of a job
+// @Tags Jobs
+// @Produce json
+// @Param jobID path string true "Job ID"
+// @Success 200 {object} JobResponse
+// @Failure 400 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /v1/jobs/{jobID} [get]
 func (s *Server) handleGetJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -121,6 +150,15 @@ func (s *Server) handleGetJob(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary List jobs
+// @Description List jobs with optional state filtering and limit
+// @Tags Jobs
+// @Produce json
+// @Param state query string false "Filter by job state"
+// @Param limit query int false "Maximum number of jobs (default 100)"
+// @Success 200 {object} ListJobsResponse
+// @Failure 500 {string} string
+// @Router /v1/jobs [get]
 func (s *Server) handleListJobs(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -171,6 +209,17 @@ func (s *Server) handleListJobs(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Acquire job lease
+// @Description Scheduler-only endpoint to atomically lease a PENDING job
+// @Tags Internal Scheduler
+// @Accept json
+// @Produce json
+// @Param request body AcquireLeaseRequest true "Lease request"
+// @Success 200 {object} AcquireLeaseResponse
+// @Success 204 "No jobs available"
+// @Failure 400 {string} string
+// @Failure 500 {string} string
+// @Router /internal/jobs/lease [post]
 func (s *Server) handleAcquireLease(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -208,6 +257,13 @@ func (s *Server) handleAcquireLease(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Recover expired leases
+// @Description Reclaim jobs whose leases have expired
+// @Tags Internal Scheduler
+// @Produce json
+// @Success 200 {object} RecoverLeasesResponse
+// @Failure 500 {string} string
+// @Router /internal/jobs/recover [post]
 func (s *Server) handleRecoverLeases(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -234,6 +290,16 @@ func (s *Server) handleRecoverLeases(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Start job execution
+// @Description Transition a job from SCHEDULED to RUNNING
+// @Tags Internal Worker
+// @Produce json
+// @Param jobID path string true "Job ID"
+// @Success 200 {object} StartJobResponse
+// @Failure 400 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /internal/jobs/{jobID}/start [post]
 func (s *Server) handleStartJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -266,6 +332,16 @@ func (s *Server) handleStartJob(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Complete job
+// @Description Mark a RUNNING job as COMPLETED
+// @Tags Internal Worker
+// @Produce json
+// @Param jobID path string true "Job ID"
+// @Success 200 {object} CompleteJobResponse
+// @Failure 400 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /internal/jobs/{jobID}/complete [post]
 func (s *Server) handleCompleteJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -298,6 +374,18 @@ func (s *Server) handleCompleteJob(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Fail job
+// @Description Mark a RUNNING job as FAILED with retry semantics
+// @Tags Internal Worker
+// @Accept json
+// @Produce json
+// @Param jobID path string true "Job ID"
+// @Param request body FailJobRequest true "Failure details"
+// @Success 200 {object} FailJobResponse
+// @Failure 400 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /internal/jobs/{jobID}/fail [post]
 func (s *Server) handleFailJob(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -346,6 +434,14 @@ func (s *Server) handleFailJob(
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
+// @Summary Worker heartbeat
+// @Description Record worker liveness for lease safety
+// @Tags Internal Worker
+// @Param workerID path string true "Worker ID"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 500 {string} string
+// @Router /internal/workers/{workerID}/heartbeat [post]
 func (s *Server) handleWorkerHeartbeat(
 	writer http.ResponseWriter,
 	request *http.Request,

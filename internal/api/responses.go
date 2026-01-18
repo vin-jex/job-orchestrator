@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -11,25 +10,20 @@ type CreateJobResponse struct {
 }
 
 type JobResponse struct {
-	JobID          string          `json:"job_id"`
-	State          string          `json:"state"`
-	Payload        json.RawMessage `json:"payload"`
-	MaxAttempts    int             `json:"max_attempts"`
-	CurrentAttempt int             `json:"current_attempt"`
-	TimeoutSeconds int             `json:"timeout_seconds"`
-	LastError      *string         `json:"last_error,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	CancelledAt    *time.Time      `json:"cancelled_at,omitempty"`
+	JobID          string     `json:"job_id"`
+	State          string     `json:"state"`
+	Payload        any        `json:"payload"`
+	MaxAttempts    int        `json:"max_attempts"`
+	CurrentAttempt int        `json:"current_attempt"`
+	TimeoutSeconds int        `json:"timeout_seconds"`
+	LastError      *string    `json:"last_error,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
 }
 
 type ListJobsResponse struct {
 	Jobs []JobResponse `json:"jobs"`
-}
-
-type AcquireLeaseRequest struct {
-	SchedulerID          string `json:"scheduler_id"`
-	LeaseDurationSeconds int    `json:"lease_duration_seconds"`
 }
 
 type AcquireLeaseResponse struct {
@@ -51,11 +45,6 @@ type CompleteJobResponse struct {
 	State string `json:"state"`
 }
 
-type FailJobRequest struct {
-	Error     string `json:"error"`
-	Retryable bool   `json:"retryable"`
-}
-
 type FailJobResponse struct {
 	JobID string `json:"job_id"`
 	State string `json:"state"`
@@ -64,4 +53,3 @@ type FailJobResponse struct {
 type RecoverJobsResponse struct {
 	RecoveredJobIDs []string `json:"recovered_job_ids"`
 }
-

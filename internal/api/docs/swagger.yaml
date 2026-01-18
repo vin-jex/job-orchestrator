@@ -1,0 +1,401 @@
+basePath: /
+definitions:
+  api.AcquireLeaseRequest:
+    properties:
+      lease_duration_seconds:
+        type: integer
+      scheduler_id:
+        type: string
+    type: object
+  api.AcquireLeaseResponse:
+    properties:
+      job_id:
+        type: string
+      lease_expires_at:
+        type: string
+    type: object
+  api.CompleteJobResponse:
+    properties:
+      job_id:
+        type: string
+      state:
+        type: string
+    type: object
+  api.CreateJobRequest:
+    properties:
+      max_attempts:
+        type: integer
+      payload:
+        additionalProperties: {}
+        type: object
+      timeout_seconds:
+        type: integer
+      type:
+        type: string
+    type: object
+  api.CreateJobResponse:
+    properties:
+      job_id:
+        type: string
+      state:
+        type: string
+    type: object
+  api.FailJobRequest:
+    properties:
+      error:
+        type: string
+      retryable:
+        type: boolean
+    type: object
+  api.FailJobResponse:
+    properties:
+      job_id:
+        type: string
+      state:
+        type: string
+    type: object
+  api.JobResponse:
+    properties:
+      cancelled_at:
+        type: string
+      created_at:
+        type: string
+      current_attempt:
+        type: integer
+      job_id:
+        type: string
+      last_error:
+        type: string
+      max_attempts:
+        type: integer
+      payload: {}
+      state:
+        type: string
+      timeout_seconds:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  api.ListJobsResponse:
+    properties:
+      jobs:
+        items:
+          $ref: '#/definitions/api.JobResponse'
+        type: array
+    type: object
+  api.RecoverLeasesResponse:
+    properties:
+      recovered_job_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  api.StartJobResponse:
+    properties:
+      job_id:
+        type: string
+      state:
+        type: string
+    type: object
+info:
+  contact:
+    email: vincentcode0@gmail.com
+    name: Okereke Vincent
+    url: https://github.com/vin-jex
+  description: Correctness-first distributed job orchestration control plane.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://example.com/terms
+  title: Distributed Job Orchestrator API
+  version: "1.0"
+paths:
+  /internal/jobs/{jobID}/complete:
+    post:
+      description: Mark a RUNNING job as COMPLETED
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CompleteJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Complete job
+      tags:
+      - Internal Worker
+  /internal/jobs/{jobID}/fail:
+    post:
+      consumes:
+      - application/json
+      description: Mark a RUNNING job as FAILED with retry semantics
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      - description: Failure details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.FailJobRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.FailJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Fail job
+      tags:
+      - Internal Worker
+  /internal/jobs/{jobID}/start:
+    post:
+      description: Transition a job from SCHEDULED to RUNNING
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.StartJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Start job execution
+      tags:
+      - Internal Worker
+  /internal/jobs/lease:
+    post:
+      consumes:
+      - application/json
+      description: Scheduler-only endpoint to atomically lease a PENDING job
+      parameters:
+      - description: Lease request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AcquireLeaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AcquireLeaseResponse'
+        "204":
+          description: No jobs available
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Acquire job lease
+      tags:
+      - Internal Scheduler
+  /internal/jobs/recover:
+    post:
+      description: Reclaim jobs whose leases have expired
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.RecoverLeasesResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Recover expired leases
+      tags:
+      - Internal Scheduler
+  /internal/workers/{workerID}/heartbeat:
+    post:
+      description: Record worker liveness for lease safety
+      parameters:
+      - description: Worker ID
+        in: path
+        name: workerID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Worker heartbeat
+      tags:
+      - Internal Worker
+  /v1/jobs:
+    get:
+      description: List jobs with optional state filtering and limit
+      parameters:
+      - description: Filter by job state
+        in: query
+        name: state
+        type: string
+      - description: Maximum number of jobs (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ListJobsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: List jobs
+      tags:
+      - Jobs
+    post:
+      consumes:
+      - application/json
+      description: Create a job in the PENDING state
+      parameters:
+      - description: Job creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateJobRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.CreateJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Create a new job
+      tags:
+      - Jobs
+  /v1/jobs/{jobID}:
+    get:
+      description: Fetch the authoritative state and metadata of a job
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.JobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get job details
+      tags:
+      - Jobs
+  /v1/jobs/{jobID}/cancel:
+    post:
+      description: Cancel a job in any non-terminal state. Cancellation is idempotent.
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Cancel a job
+      tags:
+      - Jobs
+schemes:
+- http
+swagger: "2.0"

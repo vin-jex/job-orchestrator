@@ -15,6 +15,20 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title Distributed Job Orchestrator API
+// @version 1.0
+// @description Correctness-first distributed job orchestration control plane.
+// @termsOfService https://example.com/terms
+
+// @contact.name Okereke Vincent
+// @contact.url https://github.com/vin-jex
+// @contact.email vincentcode0@gmail.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @BasePath /
+// @schemes http
 func main() {
 	err := godotenv.Load()
 	if err != nil {

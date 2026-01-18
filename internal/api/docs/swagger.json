@@ -1,0 +1,611 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Correctness-first distributed job orchestration control plane.",
+        "title": "Distributed Job Orchestrator API",
+        "termsOfService": "https://example.com/terms",
+        "contact": {
+            "name": "Okereke Vincent",
+            "url": "https://github.com/vin-jex",
+            "email": "vincentcode0@gmail.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/internal/jobs/lease": {
+            "post": {
+                "description": "Scheduler-only endpoint to atomically lease a PENDING job",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal Scheduler"
+                ],
+                "summary": "Acquire job lease",
+                "parameters": [
+                    {
+                        "description": "Lease request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.AcquireLeaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AcquireLeaseResponse"
+                        }
+                    },
+                    "204": {
+                        "description": "No jobs available"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/jobs/recover": {
+            "post": {
+                "description": "Reclaim jobs whose leases have expired",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal Scheduler"
+                ],
+                "summary": "Recover expired leases",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.RecoverLeasesResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/jobs/{jobID}/complete": {
+            "post": {
+                "description": "Mark a RUNNING job as COMPLETED",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal Worker"
+                ],
+                "summary": "Complete job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CompleteJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/jobs/{jobID}/fail": {
+            "post": {
+                "description": "Mark a RUNNING job as FAILED with retry semantics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal Worker"
+                ],
+                "summary": "Fail job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Failure details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.FailJobRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.FailJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/jobs/{jobID}/start": {
+            "post": {
+                "description": "Transition a job from SCHEDULED to RUNNING",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal Worker"
+                ],
+                "summary": "Start job execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StartJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/workers/{workerID}/heartbeat": {
+            "post": {
+                "description": "Record worker liveness for lease safety",
+                "tags": [
+                    "Internal Worker"
+                ],
+                "summary": "Worker heartbeat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Worker ID",
+                        "name": "workerID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/jobs": {
+            "get": {
+                "description": "List jobs with optional state filtering and limit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Jobs"
+                ],
+                "summary": "List jobs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by job state",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of jobs (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListJobsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a job in the PENDING state",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Jobs"
+                ],
+                "summary": "Create a new job",
+                "parameters": [
+                    {
+                        "description": "Job creation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateJobRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/jobs/{jobID}": {
+            "get": {
+                "description": "Fetch the authoritative state and metadata of a job",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Jobs"
+                ],
+                "summary": "Get job details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.JobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/jobs/{jobID}/cancel": {
+            "post": {
+                "description": "Cancel a job in any non-terminal state. Cancellation is idempotent.",
+                "tags": [
+                    "Jobs"
+                ],
+                "summary": "Cancel a job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.AcquireLeaseRequest": {
+            "type": "object",
+            "properties": {
+                "lease_duration_seconds": {
+                    "type": "integer"
+                },
+                "scheduler_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AcquireLeaseResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "lease_expires_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CompleteJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateJobRequest": {
+            "type": "object",
+            "properties": {
+                "max_attempts": {
+                    "type": "integer"
+                },
+                "payload": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.FailJobRequest": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.FailJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.JobResponse": {
+            "type": "object",
+            "properties": {
+                "cancelled_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_attempt": {
+                    "type": "integer"
+                },
+                "job_id": {
+                    "type": "string"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "max_attempts": {
+                    "type": "integer"
+                },
+                "payload": {},
+                "state": {
+                    "type": "string"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ListJobsResponse": {
+            "type": "object",
+            "properties": {
+                "jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.JobResponse"
+                    }
+                }
+            }
+        },
+        "api.RecoverLeasesResponse": {
+            "type": "object",
+            "properties": {
+                "recovered_job_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.StartJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
