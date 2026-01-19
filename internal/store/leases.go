@@ -69,108 +69,98 @@ func (s *Store) RecoverExpiredLeases(
 	ctx context.Context,
 	now time.Time,
 ) ([]uuid.UUID, error) {
-	rows, err := s.connectionPool.Query(ctx, `
-		SELECT
-			j.id,
-			j.state,
-			j.current_attempt,
-			j.max_attempts,
-			j.retryable
-		FROM job_leases l
-		JOIN jobs j ON j.id = l.job_id
-		WHERE l.lease_expires_at < $1
-			AND j.state NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
-		FOR UPDATE SKIP LOCKED
-	`,
-		now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var recovered []uuid.UUID
 
-	for rows.Next() {
-		var (
-			jobID          uuid.UUID
-			state          string
-			currentAttempt int
-			maxAttempts    int
-			retryable      bool
-		)
+	err := s.WithTransaction(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT
+				j.id,
+				j.state,
+				j.current_attempt,
+				j.max_attempts,
+				j.retryable
+			FROM job_leases l
+			JOIN jobs j ON j.id = l.job_id
+			WHERE l.lease_expires_at < $1
+			  AND j.state NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
+			FOR UPDATE SKIP LOCKED
+		`, now)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
 
-		if err := rows.Scan(
-			&jobID,
-			&state,
-			&currentAttempt,
-			&maxAttempts,
-			&retryable,
-		); err != nil {
-			return nil, err
+		for rows.Next() {
+			var (
+				jobID          uuid.UUID
+				state          string
+				currentAttempt int
+				maxAttempts    int
+				retryable      bool
+			)
+
+			if err := rows.Scan(
+				&jobID,
+				&state,
+				&currentAttempt,
+				&maxAttempts,
+				&retryable,
+			); err != nil {
+				return err
+			}
+
+			if err := s.recoverSingleJob(
+				ctx,
+				tx,
+				jobID,
+				state,
+				currentAttempt,
+				maxAttempts,
+				retryable,
+			); err != nil {
+				return err
+			}
+
+			recovered = append(recovered, jobID)
 		}
 
-		if err := s.recoverSingleJob(
-			ctx,
-			jobID,
-			state,
-			currentAttempt,
-			maxAttempts,
-			retryable,
-		); err != nil {
-			return nil, err
-		}
+		return rows.Err()
+	})
 
-		recovered = append(recovered, jobID)
-	}
-
-	return recovered, rows.Err()
+	return recovered, err
 }
 
 func (s *Store) recoverSingleJob(
 	ctx context.Context,
+	tx pgx.Tx,
 	jobID uuid.UUID,
 	state string,
 	currentAttempt int,
 	maxAttempts int,
 	retryable bool,
 ) error {
-	return s.WithTransaction(ctx, func(transaction pgx.Tx) error {
-		switch state {
-		case "SCHEDULED":
-			if err := transitionJobState(
-				ctx,
-				transaction,
-				jobID,
-				"SCHEDULED",
-				"PENDING",
-			); err != nil {
-				return err
-			}
-		case "RUNNING":
-			return s.RetryJobIfAllowed(
-				ctx,
-				transaction,
-				jobID,
-				currentAttempt,
-				maxAttempts,
-				retryable,
-			)
-
-		case "COMPLETED", "FAILED", "CANCELLED":
-			// no state transition
-		default:
-			// Terminal or unexpected state => no-op
+	switch state {
+	case "SCHEDULED":
+		if err := transitionJobState(ctx, tx, jobID, "SCHEDULED", "PENDING"); err != nil {
+			return err
 		}
+	case "RUNNING":
+		if err := s.RetryJobIfAllowed(
+			ctx,
+			tx,
+			jobID,
+			currentAttempt,
+			maxAttempts,
+			retryable,
+		); err != nil {
+			return err
+		}
+	}
 
-		// Always delete lease
-		_, err := transaction.Exec(ctx,
-			`
+	_, err := tx.Exec(ctx, `
 		DELETE FROM job_leases
 		WHERE job_id = $1
-		`,
-			jobID,
-		)
-		return err
-	})
+	`, jobID)
+
+	return err
 }

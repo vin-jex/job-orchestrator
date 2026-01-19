@@ -1,14 +1,60 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vin-jex/job-orchestrator/internal/store"
 )
+
+// handleHealth godoc
+// @Summary      Liveness probe
+// @Description  Indicates whether the process is alive
+// @Tags         ops
+// @Produce      text/plain
+// @Success      200 {string} string "ok"
+// @Router       /healthz [get]
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}
+
+// handleReady godoc
+// @Summary      Readiness probe
+// @Description  Indicates whether the service can accept traffic
+// @Tags         ops
+// @Produce      text/plain
+// @Success      200 {string} string "ready"
+// @Failure      503 {string} string "not ready"
+// @Router       /readyz [get]
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+	defer cancel()
+
+	if err := s.store.Ping(ctx); err != nil {
+		http.Error(w, "not ready", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ready"))
+}
+
+// handleMetrics godoc
+// @Summary      Prometheus metrics
+// @Description  Exposes service metrics in Prometheus format
+// @Tags         ops
+// @Produce      text/plain
+// @Success      200 {string} string
+// @Router       /metrics [get]
+func (s *Server) handleMetrics() http.Handler {
+	return promhttp.Handler()
+}
 
 // @Summary Create a new job
 // @Description Create a job in the PENDING state
@@ -258,36 +304,24 @@ func (s *Server) handleAcquireLease(
 }
 
 // @Summary Recover expired leases
-// @Description Reclaim jobs whose leases have expired
+// @Description Trigger asynchronous recovery of expired job leases
 // @Tags Internal-Scheduler
-// @Produce json
-// @Success 200 {object} RecoverLeasesResponse
-// @Failure 500 {string} string
+// @Success 202 "Recovery triggered"
 // @Router /internal/jobs/recover [post]
 func (s *Server) handleRecoverLeases(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) {
-	recovered, err := s.store.RecoverExpiredLeases(
-		request.Context(),
-		time.Now(),
-	)
-	if err != nil {
-		http.Error(writer, "lease recovery failed", http.StatusInternalServerError)
-		return
-	}
+	go func() {
+		if _, err := s.store.RecoverExpiredLeases(
+			context.Background(),
+			time.Now(),
+		); err != nil {
+			s.logger.Error("lease recovery failed", "err", err)
+		}
+	}()
 
-	jobIDs := make([]string, 0, len(recovered))
-	for _, id := range recovered {
-		jobIDs = append(jobIDs, id.String())
-	}
-
-	response := RecoverLeasesResponse{
-		RecoveredJobIDs: jobIDs,
-	}
-
-	writer.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(writer).Encode(response)
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 // @Summary Start job execution

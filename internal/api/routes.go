@@ -1,23 +1,34 @@
 package api
 
-import httpSwagger "github.com/swaggo/http-swagger"
+import (
+	"net/http"
+
+	"github.com/gorilla/mux"
+	httpSwagger "github.com/swaggo/http-swagger"
+)
 
 func (s *Server) registerRoutes() {
-	s.mux.Handle("/swagger/", httpSwagger.WrapHandler)
+	r := mux.NewRouter()
 
-	// Public
-	s.mux.HandleFunc("POST /v1/jobs", s.handleCreateJob)
-	s.mux.HandleFunc("GET /v1/jobs", s.handleListJobs)
-	s.mux.HandleFunc("GET /v1/jobs/{jobID}", s.handleGetJob)
-	s.mux.HandleFunc("POST /v1/jobs/{jobID}/cancel", s.handleCancelJob)
+	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
-	// Internal - Scheduler
-	s.mux.HandleFunc("POST /internal/jobs/lease", s.handleAcquireLease)
-	s.mux.HandleFunc("POST /internal/jobs/recover", s.handleRecoverLeases)
+	r.Handle("/metrics", s.handleMetrics()).Methods(http.MethodGet)
+	r.HandleFunc("/healthz", s.handleHealth).Methods(http.MethodGet)
+	r.HandleFunc("/readyz", s.handleReady).Methods(http.MethodGet)
 
-	// Internal - Worker
-	s.mux.HandleFunc("POST /internal/jobs/{jobID}/start", s.handleStartJob)
-	s.mux.HandleFunc("POST /internal/jobs/{jobID}/complete", s.handleCompleteJob)
-	s.mux.HandleFunc("POST /internal/jobs/{jobID}/fail", s.handleFailJob)
-	s.mux.HandleFunc("POST /internal/workers/{workerID}/heartbeat", s.handleWorkerHeartbeat)
+	r.HandleFunc("/v1/jobs", s.handleCreateJob).Methods(http.MethodPost)
+	r.HandleFunc("/v1/jobs", s.handleListJobs).Methods(http.MethodGet)
+	r.HandleFunc("/v1/jobs/{jobID}", s.handleGetJob).Methods(http.MethodGet)
+	r.HandleFunc("/v1/jobs/{jobID}/cancel", s.handleCancelJob).Methods(http.MethodPost)
+
+	r.HandleFunc("/internal/jobs/lease", s.handleAcquireLease).Methods(http.MethodPost)
+	r.HandleFunc("/internal/jobs/recover", s.handleRecoverLeases).Methods(http.MethodPost)
+
+	r.HandleFunc("/internal/jobs/{jobID}/start", s.handleStartJob).Methods(http.MethodPost)
+	r.HandleFunc("/internal/jobs/{jobID}/complete", s.handleCompleteJob).Methods(http.MethodPost)
+	r.HandleFunc("/internal/jobs/{jobID}/fail", s.handleFailJob).Methods(http.MethodPost)
+
+	r.HandleFunc("/internal/workers/{workerID}/heartbeat", s.handleWorkerHeartbeat).Methods(http.MethodPost)
+
+	s.mux = r
 }

@@ -113,6 +113,19 @@ info:
   title: Distributed Job Orchestrator API
   version: "1.0"
 paths:
+  /healthz:
+    get:
+      description: Indicates whether the process is alive
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+      summary: Liveness probe
+      tags:
+      - ops
   /internal/jobs/{jobID}/complete:
     post:
       description: Mark a RUNNING job as COMPLETED
@@ -286,6 +299,36 @@ paths:
       summary: Worker heartbeat
       tags:
       - Internal-Worker
+  /metrics:
+    get:
+      description: Exposes service metrics in Prometheus format
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Prometheus metrics
+      tags:
+      - ops
+  /readyz:
+    get:
+      description: Indicates whether the service can accept traffic
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ready
+          schema:
+            type: string
+        "503":
+          description: not ready
+          schema:
+            type: string
+      summary: Readiness probe
+      tags:
+      - ops
   /v1/jobs:
     get:
       description: List jobs with optional state filtering and limit
@@ -399,6 +442,4 @@ paths:
       summary: Cancel a job
       tags:
       - Jobs
-schemes:
-- http
 swagger: "2.0"

@@ -37,3 +37,7 @@ func NewStore(context context.Context, databaseUrl string) (*Store, error) {
 func (s *Store) Close() {
 	s.connectionPool.Close()
 }
+
+func (s *Store) Ping(ctx context.Context) error {
+	return s.connectionPool.Ping(ctx)
+}

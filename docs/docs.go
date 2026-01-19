@@ -24,6 +24,26 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/healthz": {
+            "get": {
+                "description": "Indicates whether the process is alive",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "ops"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/internal/jobs/lease": {
             "post": {
                 "description": "Scheduler-only endpoint to atomically lease a PENDING job",
@@ -280,6 +300,52 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics": {
+            "get": {
+                "description": "Exposes service metrics in Prometheus format",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "ops"
+                ],
+                "summary": "Prometheus metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/readyz": {
+            "get": {
+                "description": "Indicates whether the service can accept traffic",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "ops"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "ready",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "not ready",
                         "schema": {
                             "type": "string"
                         }
@@ -624,7 +690,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "",
 	BasePath:         "/",
-	Schemes:          []string{"http"},
+	Schemes:          []string{},
 	Title:            "Distributed Job Orchestrator API",
 	Description:      "Correctness-first distributed job orchestration control plane.",
 	InfoInstanceName: "swagger",

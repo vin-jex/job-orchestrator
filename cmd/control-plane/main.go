@@ -62,6 +62,12 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
+	logger.Info(
+		"control-plane started",
+		"addr", httpServer.Addr,
+		"docs", "/swagger/index.html",
+	)
+
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)

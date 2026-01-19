@@ -6,13 +6,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/vin-jex/job-orchestrator/internal/observability"
 	"github.com/vin-jex/job-orchestrator/internal/store"
 )
 
 type Server struct {
 	store  *store.Store
-	mux    *http.ServeMux
+	mux    *mux.Router
 	logger *slog.Logger
 }
 
@@ -21,7 +22,7 @@ type loggerKey struct{}
 func NewServer(storeLayer *store.Store, logger *slog.Logger) *Server {
 	server := &Server{
 		store:  storeLayer,
-		mux:    http.NewServeMux(),
+		mux:    mux.NewRouter(),
 		logger: logger,
 	}
 
@@ -33,7 +34,9 @@ func NewServer(storeLayer *store.Store, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	return withCORS(
 		s.withRequestID(
-			s.mux,
+			s.withRequestContext(
+				s.mux,
+			),
 		),
 	)
 }
